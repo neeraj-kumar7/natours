@@ -49,7 +49,7 @@ exports.login = catchAsync(async (req, res, next) => {
 
 exports.protect = catchAsync(async (req, res, next) => {
   // get the token and check if it exists
-  let token = '';
+  let token;
   if (
     req.headers.authorization &&
     req.headers.authorization.startsWith('Bearer')
@@ -74,7 +74,7 @@ exports.protect = catchAsync(async (req, res, next) => {
   }
 
   // check if the password is changed after generating the token
-  if (currentUser.changedPassword(decoded.iat)) {
+  if (await currentUser.changedPassword(decoded.iat)) {
     return next(
       new AppError(
         'Password has been changed recently! Please log in again',
@@ -84,5 +84,32 @@ exports.protect = catchAsync(async (req, res, next) => {
   }
 
   req.user = currentUser;
+  next();
+});
+
+exports.restrictTo =
+  (...roles) =>
+  (req, res, next) => {
+    if (!roles.includes(req.user.role)) {
+      return next(new AppError('Permission denied!', 403));
+    }
+    next();
+  };
+
+exports.forgotPassword = catchAsync(async (req, res, next) => {
+  // get user from the POSTed email
+  const user = await User.findOne({ email: req.body.email });
+  if (!user) {
+    return next(new AppError('User does not exist!', 404));
+  }
+
+  // generate reset token
+  const resetToken = user.createPasswordResetToken();
+  user.save({ validateBeforeSave: false });
+
+  // mail the reset token to the user
+});
+
+exports.resetPassword = catchAsync(async (req, res, next) => {
   next();
 });
