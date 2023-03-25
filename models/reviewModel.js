@@ -1,5 +1,7 @@
 const mongoose = require('mongoose');
 
+const Tour = require('./tourModel');
+
 const reviewSchema = new mongoose.Schema(
   {
     review: {
@@ -30,12 +32,53 @@ const reviewSchema = new mongoose.Schema(
   { toObject: { virtuals: true } }
 );
 
+reviewSchema.statics.calculateAvgRatings = async function (tourId) {
+  const stats = await this.aggregate([
+    {
+      $match: { tour: tourId },
+    },
+    {
+      $group: {
+        _id: '$tour',
+        nRatings: { $sum: 1 },
+        avgRating: { $avg: '$rating' },
+      },
+    },
+  ]);
+  console.log(stats);
+
+  if (stats.length > 0) {
+    await Tour.findByIdAndUpdate(tourId, {
+      ratingsAverage: stats[0].avgRating,
+      ratingsQuantity: stats[0].nRatings,
+    });
+  } else {
+    await Tour.findByIdAndUpdate(tourId, {
+      ratingsAverage: 4.5,
+      ratingsQuantity: 0,
+    });
+  }
+};
+
 reviewSchema.pre(/^find/, function (next) {
   this.populate({
     path: 'user',
     select: 'name photo',
   });
   next();
+});
+
+reviewSchema.post('save', async function () {
+  await this.constructor.calculateAvgRatings(this.tour);
+});
+
+reviewSchema.pre(/^findOneAnd/, async function (next) {
+  this.r = await this.findOne();
+  next();
+});
+
+reviewSchema.post(/^findOneAnd/, async function () {
+  await this.r.constructor.calculateAvgRatings(this.r.tour);
 });
 
 const Review = mongoose.model('Review', reviewSchema);
