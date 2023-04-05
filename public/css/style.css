@@ -460,6 +460,8 @@ body {
   -webkit-box-pack: center;
   -ms-flex-pack: center;
   justify-content: center;
+  /* added */
+  flex-direction: column;
 }
 .overview-box__group:not(:last-child) {
   margin-bottom: 7rem;
